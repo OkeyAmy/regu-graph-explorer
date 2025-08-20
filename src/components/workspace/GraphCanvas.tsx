@@ -10,9 +10,20 @@ import {
   Connection,
   Edge,
   Node,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useRegulationStore } from '@/store/regulationStore';
+import { useRegulationStore, HierarchyNode } from '@/store/regulationStore';
+import RegulationNode from './nodes/RegulationNode';
+import ReferenceEdge from './edges/ReferenceEdge';
+
+const nodeTypes = {
+  regulation: RegulationNode,
+};
+
+const edgeTypes = {
+  reference: ReferenceEdge,
+};
 
 export function GraphCanvas() {
   const { documentData, selectedNodeId, setSelectedNodeId } = useRegulationStore();
@@ -23,52 +34,91 @@ export function GraphCanvas() {
 
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    const nodePositions = new Map<string, { x: number; y: number }>();
     
-    // Simple layout for now - convert hierarchy to nodes
-    const processNode = (hierarchyNode: any, x: number, y: number, level: number) => {
-      nodes.push({
-        id: hierarchyNode.id,
-        position: { x: x + level * 200, y },
-        data: {
-          label: `${hierarchyNode.number}: ${hierarchyNode.title || hierarchyNode.text.substring(0, 50)}...`,
-          type: hierarchyNode.type,
-          references: hierarchyNode.references.length
-        },
-        type: 'default',
-        className: selectedNodeId === hierarchyNode.id ? 'selected' : '',
-      });
-
-      // Add hierarchy edges to children
-      hierarchyNode.children.forEach((child: any, index: number) => {
-        edges.push({
-          id: `${hierarchyNode.id}-${child.id}`,
-          source: hierarchyNode.id,
-          target: child.id,
-          type: 'smoothstep',
-          style: { stroke: '#94a3b8' }
-        });
+    // Calculate positions using a hierarchical layout
+    const calculateLayout = (hierarchyNodes: HierarchyNode[], startX = 0, startY = 0, level = 0) => {
+      let currentY = startY;
+      const levelSpacing = 300;
+      const nodeSpacing = 150;
+      
+      hierarchyNodes.forEach((node, index) => {
+        const x = startX + level * levelSpacing;
+        const y = currentY;
         
-        processNode(child, x, y + (index + 1) * 100, level + 1);
-      });
+        nodePositions.set(node.id, { x, y });
+        
+        // Create React Flow node
+        nodes.push({
+          id: node.id,
+          position: { x, y },
+          data: {
+            label: node.text.substring(0, 100),
+            type: node.type,
+            number: node.number,
+            title: node.title,
+            references: node.references.length,
+            hasChildren: node.children.length > 0,
+            isSelected: selectedNodeId === node.id,
+          },
+          type: 'regulation',
+          className: selectedNodeId === node.id ? 'selected' : '',
+        });
 
-      // Add reference edges
-      hierarchyNode.references.forEach((ref: any, index: number) => {
-        if (ref.type === 'internal' && ref.target !== 'external') {
-          edges.push({
-            id: `ref-${hierarchyNode.id}-${ref.target}-${index}`,
-            source: hierarchyNode.id,
-            target: ref.target,
-            type: 'default',
-            style: { stroke: '#ef4444', strokeDasharray: '5,5' },
-            animated: true
-          });
+        // Process children
+        if (node.children.length > 0) {
+          const childrenHeight = calculateLayout(node.children, startX, currentY + nodeSpacing, level + 1);
+          currentY = Math.max(currentY + nodeSpacing, childrenHeight);
+        } else {
+          currentY += nodeSpacing;
         }
+      });
+      
+      return currentY;
+    };
+
+    calculateLayout(documentData.hierarchy);
+
+    // Create edges after all nodes are positioned
+    const createEdges = (hierarchyNodes: HierarchyNode[]) => {
+      hierarchyNodes.forEach((node) => {
+        // Hierarchy edges (parent to children)
+        node.children.forEach((child) => {
+          edges.push({
+            id: `hierarchy-${node.id}-${child.id}`,
+            source: node.id,
+            target: child.id,
+            type: 'smoothstep',
+            data: { type: 'hierarchy' },
+            style: { stroke: '#64748b', strokeWidth: 2 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+          });
+        });
+
+        // Reference edges
+        node.references.forEach((ref, index) => {
+          if (ref.type === 'internal' && ref.target !== 'external' && nodePositions.has(ref.target)) {
+            edges.push({
+              id: `reference-${node.id}-${ref.target}-${index}`,
+              source: node.id,
+              target: ref.target,
+              type: 'reference',
+              data: { 
+                type: 'reference',
+                referenceText: ref.text 
+              },
+              animated: true,
+              markerEnd: { type: MarkerType.ArrowClosed, color: '#ef4444' },
+            });
+          }
+        });
+
+        // Recursively process children
+        createEdges(node.children);
       });
     };
 
-    documentData.hierarchy.forEach((node, index) => {
-      processNode(node, 0, index * 150, 0);
-    });
+    createEdges(documentData.hierarchy);
 
     return { nodes, edges };
   }, [documentData, selectedNodeId]);
@@ -108,12 +158,28 @@ export function GraphCanvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         attributionPosition="bottom-left"
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+        }}
+        proOptions={{ hideAttribution: true }}
       >
-        <Controls />
-        <MiniMap />
-        <Background />
+        <Controls showInteractive={false} />
+        <MiniMap 
+          nodeClassName={(node) => {
+            switch (node.data.type) {
+              case 'part': return 'fill-blue-400';
+              case 'section': return 'fill-green-400';  
+              case 'subsection': return 'fill-orange-400';
+              default: return 'fill-purple-400';
+            }
+          }}
+          maskColor="rgb(240, 240, 240, 0.8)"
+        />
+        <Background color="#aaa" gap={16} />
       </ReactFlow>
     </div>
   );

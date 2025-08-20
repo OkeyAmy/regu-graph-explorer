@@ -1,4 +1,5 @@
 import { DocumentData } from '@/store/regulationStore';
+import { GEMINI_API_KEY, GEMINI_API_URL } from '@/config/api';
 
 interface ProcessingState {
   stage: 'idle' | 'uploading' | 'cleaning' | 'parsing' | 'building' | 'complete' | 'error';
@@ -103,12 +104,16 @@ export async function processDocument(
 }
 
 async function extractTextFromPDF(file: File): Promise<string> {
-  // PDF processing would typically be done on the backend
-  // For now, we'll throw an error or use a client-side library
-  const pdfParse = await import('pdf-parse');
-  const arrayBuffer = await file.arrayBuffer();
-  const data = await pdfParse.default(Buffer.from(arrayBuffer));
-  return data.text;
+  try {
+    // Use pdf-parse for client-side PDF processing
+    const pdfParse = await import('pdf-parse');
+    const arrayBuffer = await file.arrayBuffer();
+    const data = await pdfParse.default(Buffer.from(arrayBuffer));
+    return data.text;
+  } catch (error) {
+    console.error('PDF parsing error:', error);
+    throw new Error('Failed to extract text from PDF. Please try a different file or convert to text format.');
+  }
 }
 
 function cleanDocumentText(rawText: string): string {
@@ -127,8 +132,7 @@ async function parseWithGemini(
   rawText: string,
   setProcessingState: (state: ProcessingState) => void
 ): Promise<any> {
-  // TODO: Add secrets management for Gemini API key
-  const apiKey = 'your-gemini-api-key'; // This should come from environment/secrets
+  const apiKey = GEMINI_API_KEY;
   
   const prompt = `
 You are a legal document parser. Parse this regulatory document into a structured JSON format that represents the hierarchy and all cross-references.
@@ -174,7 +178,13 @@ Return only the JSON, no other text.
 `;
 
   try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey, {
+    setProcessingState({
+      stage: 'parsing',
+      progress: 60,
+      message: 'Sending document to Gemini AI...',
+    });
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

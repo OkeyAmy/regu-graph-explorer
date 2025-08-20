@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRegulationStore } from '@/store/regulationStore';
 import { processDocument } from '@/services/documentService';
+import { SampleDocumentLoader } from '@/components/demo/SampleDocument';
 import { cn } from '@/lib/utils';
 
 export function UploadInterface() {
@@ -65,8 +66,9 @@ export function UploadInterface() {
         </div>
 
         <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="upload">Upload Document</TabsTrigger>
+            <TabsTrigger value="sample">Try Sample</TabsTrigger>
             <TabsTrigger value="history">Saved Documents</TabsTrigger>
           </TabsList>
 
@@ -136,6 +138,10 @@ export function UploadInterface() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="sample">
+            <SampleDocumentLoader />
           </TabsContent>
 
           <TabsContent value="history">
