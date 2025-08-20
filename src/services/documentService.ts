@@ -1,5 +1,6 @@
 import { DocumentData } from '@/store/regulationStore';
-import { GEMINI_API_KEY, GEMINI_API_URL } from '@/config/api';
+import { GEMINI_API_KEY } from '@/config/api';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 interface ProcessingState {
   stage: 'idle' | 'uploading' | 'cleaning' | 'parsing' | 'building' | 'complete' | 'error';
@@ -24,17 +25,30 @@ export async function processDocument(
     let fileName: string;
 
     if (typeof input === 'string') {
-      // URL input
+      // URL input - Use CORS proxy for external documents
       fileName = input.split('/').pop() || 'document';
-      const response = await fetch(input);
-      if (!response.ok) throw new Error('Failed to fetch document');
       
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/pdf')) {
-        // Handle PDF from URL (would need backend processing)
-        throw new Error('PDF URLs require backend processing');
-      } else {
-        rawText = await response.text();
+      try {
+        // Try direct fetch first
+        const response = await fetch(input, {
+          mode: 'cors',
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml,text/plain,application/pdf',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/pdf')) {
+          throw new Error('PDF URLs require file upload due to browser security restrictions');
+        } else {
+          rawText = await response.text();
+        }
+      } catch (error) {
+        throw new Error(`Failed to fetch document from URL: ${error instanceof Error ? error.message : 'Network error'}`);
       }
     } else {
       // File input
@@ -105,11 +119,28 @@ export async function processDocument(
 
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
-    // Use pdf-parse for client-side PDF processing
-    const pdfParse = await import('pdf-parse');
+    // Use pdfjs-dist for browser-compatible PDF parsing
+    const pdfjsLib = await import('pdfjs-dist');
+    
+    // Set worker source for PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    
     const arrayBuffer = await file.arrayBuffer();
-    const data = await pdfParse.default(Buffer.from(arrayBuffer));
-    return data.text;
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
+    let text = '';
+    
+    // Extract text from each page
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      text += pageText + '\n';
+    }
+    
+    return text;
   } catch (error) {
     console.error('PDF parsing error:', error);
     throw new Error('Failed to extract text from PDF. Please try a different file or convert to text format.');
@@ -132,9 +163,18 @@ async function parseWithGemini(
   rawText: string,
   setProcessingState: (state: ProcessingState) => void
 ): Promise<any> {
-  const apiKey = GEMINI_API_KEY;
-  
-  const prompt = `
+  try {
+    setProcessingState({
+      stage: 'parsing',
+      progress: 60,
+      message: 'Sending document to Gemini AI...',
+    });
+
+    // Initialize the Google Generative AI client with the latest SDK
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    const prompt = `
 You are a legal document parser. Parse this regulatory document into a structured JSON format that represents the hierarchy and all cross-references.
 
 **Instructions for Gemini**:
@@ -310,40 +350,25 @@ ${cleanedText}
 Return only the JSON, no other text.
 `;
 
-  try {
     setProcessingState({
       stage: 'parsing',
-      progress: 60,
-      message: 'Sending document to Gemini AI...',
+      progress: 75,
+      message: 'Processing with Gemini AI...',
     });
 
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.1,
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to parse with Gemini API');
-    }
-
-    const data = await response.json();
-    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const generatedText = response.text();
     
     if (!generatedText) {
       throw new Error('No response from Gemini API');
     }
+
+    setProcessingState({
+      stage: 'parsing',
+      progress: 85,
+      message: 'Parsing AI response...',
+    });
 
     // Extract JSON from response
     const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
@@ -355,7 +380,7 @@ Return only the JSON, no other text.
     
   } catch (error) {
     console.error('Gemini API error:', error);
-    throw new Error('Failed to parse document with AI. Please check your API key and try again.');
+    throw new Error(`Failed to parse document with AI: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
