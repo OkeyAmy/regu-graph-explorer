@@ -1,13 +1,18 @@
-import { useState } from 'react';
+
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TreeNavigationPanel } from './TreeNavigationPanel';
-import { GraphCanvas } from './GraphCanvas';
+import { StreamingGraphCanvas } from './StreamingGraphCanvas';
 import { DetailPanel } from './DetailPanel';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { useRegulationStore } from '@/store/regulationStore';
 
 export function WorkspaceView() {
-  const { leftPanelCollapsed, rightPanelCollapsed } = useRegulationStore();
+  const { 
+    leftPanelCollapsed, 
+    rightPanelCollapsed,
+    streamingState,
+    highlightedReferences 
+  } = useRegulationStore();
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -25,9 +30,14 @@ export function WorkspaceView() {
             </>
           )}
 
-          {/* Center Panel - Graph Canvas */}
+          {/* Center Panel - Streaming Graph Canvas */}
           <Panel defaultSize={leftPanelCollapsed && rightPanelCollapsed ? 100 : 50} minSize={30}>
-            <GraphCanvas />
+            <StreamingGraphCanvas 
+              streamingNodes={streamingState.streamingNodes}
+              isStreaming={streamingState.isStreaming}
+              streamingProgress={streamingState.streamingProgress}
+              highlightedReferences={highlightedReferences}
+            />
           </Panel>
 
           {/* Right Panel - Detail View */}

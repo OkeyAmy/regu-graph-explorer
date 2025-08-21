@@ -34,6 +34,13 @@ interface ProcessingState {
   currentSection?: string;
 }
 
+interface StreamingState {
+  isStreaming: boolean;
+  streamingNodes: HierarchyNode[];
+  streamingMetadata: DocumentData['metadata'] | null;
+  streamingProgress: number;
+}
+
 interface RegulationStore {
   // Document data
   documentData: DocumentData | null;
@@ -43,9 +50,18 @@ interface RegulationStore {
   processingState: ProcessingState;
   setProcessingState: (state: ProcessingState) => void;
 
-  // Selected node
+  // Streaming state
+  streamingState: StreamingState;
+  setStreamingState: (state: Partial<StreamingState>) => void;
+  addStreamingNode: (node: HierarchyNode) => void;
+  clearStreamingData: () => void;
+
+  // Selected node and references
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
+  
+  highlightedReferences: string[];
+  setHighlightedReferences: (refs: string[]) => void;
 
   // Search and filters
   searchQuery: string;
@@ -72,6 +88,7 @@ interface RegulationStore {
   findNodeById: (id: string) => HierarchyNode | null;
   getNodePath: (id: string) => HierarchyNode[];
   getAllNodes: () => HierarchyNode[];
+  findReferencesToNode: (nodeId: string) => HierarchyNode[];
 }
 
 const findNodeInHierarchy = (nodes: HierarchyNode[], id: string): HierarchyNode | null => {
@@ -116,9 +133,53 @@ export const useRegulationStore = create<RegulationStore>((set, get) => ({
   },
   setProcessingState: (state) => set({ processingState: state }),
 
-  // Selected node
+  // Streaming state
+  streamingState: {
+    isStreaming: false,
+    streamingNodes: [],
+    streamingMetadata: null,
+    streamingProgress: 0,
+  },
+  setStreamingState: (state) => set(prev => ({ 
+    streamingState: { ...prev.streamingState, ...state } 
+  })),
+  addStreamingNode: (node) => set(prev => ({
+    streamingState: {
+      ...prev.streamingState,
+      streamingNodes: [...prev.streamingState.streamingNodes, node]
+    }
+  })),
+  clearStreamingData: () => set({
+    streamingState: {
+      isStreaming: false,
+      streamingNodes: [],
+      streamingMetadata: null,
+      streamingProgress: 0,
+    }
+  }),
+
+  // Selected node and references
   selectedNodeId: null,
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setSelectedNodeId: (id) => {
+    set({ selectedNodeId: id });
+    
+    // Auto-highlight references when a node is selected
+    if (id) {
+      const referencingNodes = get().findReferencesToNode(id);
+      const node = get().findNodeById(id);
+      const relatedIds = [
+        ...referencingNodes.map(n => n.id),
+        ...(node?.references.map(r => r.target) || [])
+      ].filter(refId => refId !== 'external');
+      
+      get().setHighlightedReferences(relatedIds);
+    } else {
+      get().setHighlightedReferences([]);
+    }
+  },
+
+  highlightedReferences: [],
+  setHighlightedReferences: (refs) => set({ highlightedReferences: refs }),
 
   // Search and filters
   searchQuery: '',
@@ -170,20 +231,30 @@ export const useRegulationStore = create<RegulationStore>((set, get) => ({
 
   // Helper functions
   findNodeById: (id) => {
-    const { documentData } = get();
-    if (!documentData) return null;
-    return findNodeInHierarchy(documentData.hierarchy, id);
+    const { documentData, streamingState } = get();
+    const hierarchy = documentData?.hierarchy || streamingState.streamingNodes;
+    if (!hierarchy) return null;
+    return findNodeInHierarchy(hierarchy, id);
   },
 
   getNodePath: (id) => {
-    const { documentData } = get();
-    if (!documentData) return [];
-    return getPathToNode(documentData.hierarchy, id);
+    const { documentData, streamingState } = get();
+    const hierarchy = documentData?.hierarchy || streamingState.streamingNodes;
+    if (!hierarchy) return [];
+    return getPathToNode(hierarchy, id);
   },
 
   getAllNodes: () => {
-    const { documentData } = get();
-    if (!documentData) return [];
-    return flattenNodes(documentData.hierarchy);
+    const { documentData, streamingState } = get();
+    const hierarchy = documentData?.hierarchy || streamingState.streamingNodes;
+    if (!hierarchy) return [];
+    return flattenNodes(hierarchy);
+  },
+
+  findReferencesToNode: (nodeId) => {
+    const allNodes = get().getAllNodes();
+    return allNodes.filter(node => 
+      node.references.some(ref => ref.target === nodeId)
+    );
   },
 }));
