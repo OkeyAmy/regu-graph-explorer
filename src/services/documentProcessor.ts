@@ -1,5 +1,5 @@
 
-import { DocumentStreamingService, StreamingCallbacks } from './streamingService';
+import { EnhancedStreamingService, StreamingCallbacks } from './streaming/EnhancedStreamingService';
 import { DocumentData, HierarchyNode } from '@/store/regulationStore';
 
 interface ProcessingState {
@@ -14,10 +14,10 @@ interface ProcessingState {
  * AI processing to the streaming service
  */
 export class DocumentProcessor {
-  private streamingService: DocumentStreamingService;
+  private streamingService: EnhancedStreamingService;
 
   constructor() {
-    this.streamingService = new DocumentStreamingService();
+    this.streamingService = new EnhancedStreamingService();
   }
 
   /**

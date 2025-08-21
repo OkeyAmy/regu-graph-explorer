@@ -1,7 +1,7 @@
 
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { TreeNavigationPanel } from './TreeNavigationPanel';
-import { StreamingGraphCanvas } from './StreamingGraphCanvas';
+import { CanvasWrapper } from './CanvasWrapper';
 import { DetailPanel } from './DetailPanel';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { useRegulationStore } from '@/store/regulationStore';
@@ -32,7 +32,7 @@ export function WorkspaceView() {
 
           {/* Center Panel - Streaming Graph Canvas */}
           <Panel defaultSize={leftPanelCollapsed && rightPanelCollapsed ? 100 : 50} minSize={30}>
-            <StreamingGraphCanvas 
+            <CanvasWrapper 
               streamingNodes={streamingState.streamingNodes}
               isStreaming={streamingState.isStreaming}
               streamingProgress={streamingState.streamingProgress}

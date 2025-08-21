@@ -123,6 +123,60 @@
   }
 }
 
+/* Streaming node animations */
+.streaming-node {
+  animation: stream-in 0.5s ease-out;
+}
+
+@keyframes stream-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Level-based styling */
+.level-1 {
+  border-width: 3px;
+  font-weight: 600;
+}
+
+.level-2 {
+  border-width: 2px;
+  font-weight: 500;
+}
+
+.level-3 {
+  border-width: 1px;
+  font-weight: 400;
+}
+
+.level-4,
+.level-5 {
+  border-width: 1px;
+  font-weight: 300;
+  opacity: 0.9;
+}
+
 @keyframes pulse-highlight {
   0%, 100% {
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3);
