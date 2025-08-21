@@ -53,6 +53,15 @@ export async function processDocument(
             }
             break;
             
+          case 'chunk_complete':
+            console.log(`Chunk ${chunk.data.chunkIndex + 1} of ${chunk.data.totalChunks} completed`);
+            setProcessingState({
+              stage: 'parsing',
+              progress: 30 + ((chunk.data.chunkIndex + 1) / chunk.data.totalChunks) * 60,
+              message: `Processed chunk ${chunk.data.chunkIndex + 1} of ${chunk.data.totalChunks}...`
+            });
+            break;
+            
           case 'complete':
             console.log('Streaming complete');
             break;
@@ -75,10 +84,14 @@ export async function processDocument(
           streamingProgress: 100 
         });
         
+        // Show completion message with node count
+        console.log(`✅ Processing complete! Generated ${documentData.hierarchy.length} nodes`);
+        
         // Clear streaming data after a brief delay to show completion
         setTimeout(() => {
           store.clearStreamingData();
-        }, 1000);
+          console.log('🎨 Canvas now showing final document structure');
+        }, 1500);
       },
       
       onError: (error) => {

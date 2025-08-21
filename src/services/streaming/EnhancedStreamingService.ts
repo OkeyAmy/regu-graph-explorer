@@ -9,6 +9,8 @@ import { GEMINI_API_KEY } from '@/config/api';
 import { DocumentChunker, DocumentChunk } from './DocumentChunker';
 import { StreamingParser, ParsedChunk } from './StreamingParser';
 import { HierarchyNode } from '@/store/regulationStore';
+import { buildRegulatoryPromptStructure } from '@/services/prompts/systemPrompt';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 export interface StreamingChunk {
   type: 'metadata' | 'hierarchy_start' | 'node' | 'complete' | 'error' | 'chunk_complete';
@@ -31,6 +33,7 @@ export class EnhancedStreamingService {
   private parser: StreamingParser;
   private mergedHierarchy: HierarchyNode[] = [];
   private mergedMetadata: any = null;
+  private rawStreamBuffer = ''; // For debug logging
 
   constructor() {
     this.llm = new ChatGoogleGenerativeAI({
@@ -74,6 +77,7 @@ export class EnhancedStreamingService {
       this.parser.resetState();
       this.mergedHierarchy = [];
       this.mergedMetadata = null;
+      this.rawStreamBuffer = '';
 
       callbacks.onProgress(5, 'Analyzing document size...');
 
@@ -102,6 +106,8 @@ export class EnhancedStreamingService {
     const chunks = await this.chunker.chunkDocument(documentText);
     callbacks.onProgress(15, `Processing ${chunks.length} chunks...`);
 
+    console.log('[DEBUG] Enhanced - Processing', chunks.length, 'chunks');
+
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       const baseProgress = 15 + (i / chunks.length) * 75;
@@ -111,6 +117,7 @@ export class EnhancedStreamingService {
         `Processing chunk ${i + 1} of ${chunks.length}...`
       );
 
+      console.log('[DEBUG] Enhanced - Starting chunk', i + 1, 'of', chunks.length);
       await this.processChunk(chunk, callbacks);
       
       callbacks.onChunk({
@@ -119,7 +126,13 @@ export class EnhancedStreamingService {
         chunkIndex: i,
         totalChunks: chunks.length
       });
+
+      console.log('[DEBUG] Enhanced - Completed chunk', i + 1, 'of', chunks.length);
     }
+
+    console.log('[DEBUG] Enhanced - All chunks processed, finalizing results...');
+    console.log('[DEBUG] Enhanced - Final hierarchy length:', this.mergedHierarchy.length);
+    console.log('[DEBUG] Enhanced - Final metadata:', this.mergedMetadata);
 
     // Finalize merged results
     this.finalizeMergedResults(callbacks);
@@ -134,24 +147,46 @@ export class EnhancedStreamingService {
   ): Promise<void> {
     callbacks.onProgress(10, 'Starting AI analysis...');
 
-    const prompt = this.buildAnalysisPrompt(documentText);
+    const promptStructure = buildRegulatoryPromptStructure(documentText);
+    
+    console.log('[DEBUG] Enhanced - System message length:', promptStructure.systemMessage.length);
+    console.log('[DEBUG] Enhanced - User message length:', promptStructure.userMessage.length);
+    
     callbacks.onProgress(15, 'Connecting to AI model...');
 
-    const stream = await this.llm.stream(prompt);
+    const messages = [
+      new SystemMessage(promptStructure.systemMessage),
+      new HumanMessage(promptStructure.userMessage)
+    ];
+
+    const stream = await this.llm.stream(messages);
     let chunkCount = 0;
+    let firstChunkLogged = false;
 
     for await (const chunk of stream) {
       chunkCount++;
       const content = chunk.content || '';
       
       if (typeof content === 'string') {
+        this.rawStreamBuffer += content;
+        
+        // Debug log first 500 chars of raw stream
+        if (!firstChunkLogged && this.rawStreamBuffer.length >= 500) {
+          console.log('[DEBUG] Enhanced - First 500 chars of raw stream:', this.rawStreamBuffer.substring(0, 500));
+          firstChunkLogged = true;
+        }
+        
         const parsedChunks = this.parser.processChunk(content);
+        
+        console.log('[DEBUG] Enhanced - Parser returned', parsedChunks.length, 'chunks');
         
         // Forward parsed chunks to callbacks
         parsedChunks.forEach(parsedChunk => {
           if (parsedChunk.type === 'metadata' && !this.mergedMetadata) {
+            console.log('[DEBUG] Enhanced - Merged metadata:', parsedChunk.data);
             this.mergedMetadata = parsedChunk.data;
           } else if (parsedChunk.type === 'node') {
+            console.log('[DEBUG] Enhanced - Merged node:', parsedChunk.data.id, parsedChunk.data.type);
             this.mergedHierarchy.push(parsedChunk.data);
           }
           
@@ -178,9 +213,16 @@ export class EnhancedStreamingService {
     chunk: DocumentChunk,
     callbacks: StreamingCallbacks
   ): Promise<void> {
-    const prompt = this.buildChunkAnalysisPrompt(chunk);
+    const promptStructure = this.buildChunkPromptStructure(chunk);
     
-    const stream = await this.llm.stream(prompt);
+    console.log('[DEBUG] Enhanced - Chunk', chunk.index, 'system message length:', promptStructure.systemMessage.length);
+    
+    const messages = [
+      new SystemMessage(promptStructure.systemMessage),
+      new HumanMessage(promptStructure.userMessage)
+    ];
+    
+    const stream = await this.llm.stream(messages);
     const parser = new StreamingParser(); // Fresh parser for each chunk
     
     for await (const streamChunk of stream) {
@@ -189,12 +231,16 @@ export class EnhancedStreamingService {
       if (typeof content === 'string') {
         const parsedChunks = parser.processChunk(content, chunk.index);
         
+        console.log('[DEBUG] Enhanced - Chunk', chunk.index, 'parser returned', parsedChunks.length, 'chunks');
+        
         // Process each parsed chunk
         parsedChunks.forEach(parsedChunk => {
           if (parsedChunk.type === 'metadata' && !this.mergedMetadata) {
+            console.log('[DEBUG] Enhanced - Chunk', chunk.index, 'metadata:', parsedChunk.data);
             this.mergedMetadata = parsedChunk.data;
           } else if (parsedChunk.type === 'node') {
             // Merge nodes from different chunks
+            console.log('[DEBUG] Enhanced - Chunk', chunk.index, 'merging node:', parsedChunk.data.id, parsedChunk.data.type);
             this.mergeHierarchyNode(parsedChunk.data);
           }
           
@@ -219,6 +265,7 @@ export class EnhancedStreamingService {
     if (existingIndex >= 0) {
       // Merge with existing node
       const existing = this.mergedHierarchy[existingIndex];
+      console.log('[DEBUG] Enhanced - Merging existing node:', node.id, 'text length:', node.text?.length || 0);
       this.mergedHierarchy[existingIndex] = {
         ...existing,
         text: existing.text + ' ' + node.text,
@@ -227,6 +274,7 @@ export class EnhancedStreamingService {
       };
     } else {
       // Add new node
+      console.log('[DEBUG] Enhanced - Adding new node:', node.id, node.type, 'text length:', node.text?.length || 0);
       this.mergedHierarchy.push(node);
     }
   }
@@ -270,67 +318,72 @@ export class EnhancedStreamingService {
       hierarchy: this.mergedHierarchy
     };
 
+    console.log('[DEBUG] Enhanced - Final merged data:', {
+      metadata: finalData.metadata,
+      hierarchyCount: finalData.hierarchy?.length || 0,
+      rawStreamBufferLength: this.rawStreamBuffer.length
+    });
+
+    // Save JSON file to system
+    this.saveJsonToFile(finalData);
+
+    callbacks.onProgress(98, 'Saving analysis results...');
+    
+    // Send completion signal
     callbacks.onComplete(finalData);
     callbacks.onProgress(100, 'Analysis complete!');
   }
 
   /**
-   * Build analysis prompt for full document
+   * Save the final JSON to a downloadable file
    */
-  private buildAnalysisPrompt(documentText: string): string {
-    return `Parse the regulatory document into a structured JSON that represents the hierarchy and all cross-references, preserving verbatim text.
-
-**Instructions for Gemini**:
-
-1.  **Document Structure Detection**:
-    - Identify the main **Parts** (e.g., "PART I - PRELIMINARY", "PART II - ADMINISTRATION OF ACT").
-    - Within each Part, detect **Sections** (e.g., "1. Short title and commencement", "2. Interpretation").
-    - For each Section, extract **Subsections** (e.g., "(1)", "(2)") and **Paragraphs** (e.g., "(a)", "(b)", "(i)", "(ii)").
-    - Preserve the exact nesting and numbering styles found in the document (e.g., "Article 2", "Art. 2º", "Section 1", "1(a)").
-
-2.  **Reference Extraction**:
-    - Find all cross-references in the text, such as:
-        - "under section 9"
-        - "pursuant to subsection (2)"
-        - "in accordance with section 39(2)(b)"
-        - "as defined in Section 2(1)"
-    - Map each reference to its target using a unique ID system based on the hierarchy (e.g., "sec9" for Section 9, "sec2:p1" for Section 2, Paragraph 1).
-    - Classify references as "internal" (within the document) or "external" (to other laws).
-
-3.  **Text Preservation**:
-    - Copy text verbatim without rephrasing or summarizing.
-    - Include all formatting like italics or quotes as plain text, but note any emphasis in the metadata if needed.
-
-4.  **JSON Output Structure**:
-    - The output should be a JSON object with metadata and a hierarchy array.
-    - Each element in the hierarchy should have:
-        - \`id\`: A unique identifier (e.g., "part1", "sec2", "sec2:p1").
-        - \`type\`: The element type (e.g., "part", "section", "subsection", "paragraph").
-        - \`number\`: The official number or label (e.g., "1", "(1)", "(a)").
-        - \`title\`: The title or heading if available (e.g., "Short title and commencement").
-        - \`text\`: The verbatim text content.
-        - \`level\`: The nesting level (e.g., 1 for part, 2 for section, 3 for subsection, etc.).
-        - \`references\`: An array of reference objects, each with:
-            - \`target\`: The ID of the referenced element (e.g., "sec9").
-            - \`text\`: The exact reference text from the content.
-            - \`type\`: "internal" or "external".
-        - \`children\`: An array of child elements for nesting.
-
-**Document to parse:**
-${documentText}
-
-Return only the JSON, no other text.`;
+  private saveJsonToFile(data: any): void {
+    try {
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `regulatory-analysis-${timestamp}.json`;
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      URL.revokeObjectURL(url);
+      
+      console.log('[DEBUG] Enhanced - JSON file saved:', filename);
+    } catch (error) {
+      console.error('[DEBUG] Enhanced - Failed to save JSON file:', error);
+    }
   }
 
   /**
-   * Build analysis prompt for document chunk
+   * Build analysis prompt for full document (legacy)
    */
-  private buildChunkAnalysisPrompt(chunk: DocumentChunk): string {
-    return `Parse this chunk of a regulatory document (chunk ${chunk.index + 1} of ${chunk.metadata.totalChunks}). Follow the same JSON structure as specified above, but note this is a partial document.
+  private buildAnalysisPrompt(documentText: string): string {
+    const { systemMessage, userMessage } = buildRegulatoryPromptStructure(documentText);
+    return `${systemMessage}\n\n${userMessage}`;
+  }
 
-**Document chunk to parse:**
-${chunk.content}
+  /**
+   * Build chunk prompt structure for system/user messages
+   */
+  private buildChunkPromptStructure(chunk: DocumentChunk): { systemMessage: string; userMessage: string } {
+    const basePromptStructure = buildRegulatoryPromptStructure('');
+    
+    const systemMessage = `${basePromptStructure.systemMessage}
 
-Return only the JSON for this chunk, no other text.`;
+**IMPORTANT**: This is chunk ${chunk.index + 1} of ${chunk.metadata.totalChunks} from a larger document. Parse only this chunk following the same JSON structure, but note this is a partial document.`;
+    
+    const userMessage = `Document chunk to parse:
+${chunk.content}`;
+    
+    return { systemMessage, userMessage };
   }
 }

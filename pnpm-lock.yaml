@@ -20,6 +20,9 @@ importers:
       '@langchain/google-genai':
         specifier: ^0.2.16
         version: 0.2.16(@langchain/core@0.3.72(openai@5.12.2(zod@3.25.76)))
+      '@langchain/textsplitters':
+        specifier: ^0.1.0
+        version: 0.1.0(@langchain/core@0.3.72(openai@5.12.2(zod@3.25.76)))
       '@radix-ui/react-accordion':
         specifier: ^1.2.11
         version: 1.2.12(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

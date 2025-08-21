@@ -68,6 +68,18 @@ export class DocumentProcessor {
           });
         },
         onComplete: (parsedData) => {
+          console.log('[DEBUG] DocumentProcessor - Received completion data:', {
+            metadata: parsedData.metadata,
+            hierarchyCount: parsedData.hierarchy?.length || 0
+          });
+
+          // Stage 4: Building graph structure
+          callbacks.onProgress({
+            stage: 'building',
+            progress: 95,
+            message: 'Building interactive graph...'
+          });
+
           const documentData: DocumentData = {
             metadata: {
               title: parsedData.metadata?.title || fileName,
@@ -78,6 +90,12 @@ export class DocumentProcessor {
             hierarchy: parsedData.hierarchy || [],
           };
 
+          console.log('[DEBUG] DocumentProcessor - Final document data:', {
+            metadata: documentData.metadata,
+            hierarchyCount: documentData.hierarchy.length
+          });
+
+          // Final completion
           callbacks.onProgress({
             stage: 'complete',
             progress: 100,

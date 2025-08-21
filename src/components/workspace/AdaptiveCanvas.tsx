@@ -61,6 +61,25 @@ export function AdaptiveCanvas({
   // Use streaming nodes if available, otherwise fall back to document data
   const activeNodes = streamingNodes.length > 0 ? streamingNodes : (documentData?.hierarchy || []);
 
+  // Calculate node size based on content - moved before useMemo to avoid temporal dead zone
+  const calculateNodeSize = useCallback((node: HierarchyNode) => {
+    const baseWidth = 200;
+    const baseHeight = 80;
+    
+    // Null safety checks for node properties
+    const text = node?.text || '';
+    const level = node?.level || 0;
+    
+    // Adjust size based on text length and hierarchy level
+    const textFactor = Math.min(text.length / 100, 2);
+    const levelFactor = Math.max(1, 6 - level) * 0.1;
+    
+    return {
+      width: baseWidth + (textFactor * 50) + (levelFactor * 20),
+      height: baseHeight + (textFactor * 20) + (levelFactor * 10),
+    };
+  }, []);
+
   // Memoized layout calculation with adaptive positioning
   const { nodes, edges } = useMemo(() => {
     if (activeNodes.length === 0) return { nodes: [], edges: [] };
@@ -108,17 +127,17 @@ export function AdaptiveCanvas({
           id: node.id,
           position: { x, y },
           data: {
-            label: node.text.substring(0, 100),
-            type: node.type,
-            number: node.number,
-            title: node.title,
-            references: node.references.length,
-            hasChildren: node.children.length > 0,
+            label: (node.text || '').substring(0, 100),
+            type: node.type || '',
+            number: node.number || '',
+            title: node.title || '',
+            references: (node.references || []).length,
+            hasChildren: (node.children || []).length > 0,
             isSelected: selectedNodeId === node.id,
             isStreaming: isNewNode,
             isHighlighted: highlightedReferences.includes(node.id),
-            fullText: node.text,
-            level: node.level,
+            fullText: node.text || '',
+            level: node.level || 0,
           },
           type: 'regulation',
           style: {
@@ -133,8 +152,8 @@ export function AdaptiveCanvas({
           ].filter(Boolean).join(' '),
         });
 
-        if (node.children.length > 0) {
-          const childrenHeight = calculateLayout(node.children, startX, currentY + nodeSpacing, level + 1);
+        if ((node.children || []).length > 0) {
+          const childrenHeight = calculateLayout(node.children || [], startX, currentY + nodeSpacing, level + 1);
           currentY = Math.max(currentY + nodeSpacing, childrenHeight);
         } else {
           currentY += nodeSpacing;
@@ -150,7 +169,7 @@ export function AdaptiveCanvas({
     const createEdges = (hierarchyNodes: HierarchyNode[]) => {
       hierarchyNodes.forEach((node) => {
         // Hierarchy edges
-        node.children.forEach((child) => {
+        (node.children || []).forEach((child) => {
           edges.push({
             id: `hierarchy-${node.id}-${child.id}`,
             source: node.id,
@@ -169,7 +188,7 @@ export function AdaptiveCanvas({
 
         // Reference edges with conditional rendering
         if (showReferences) {
-          node.references.forEach((ref, index) => {
+          (node.references || []).forEach((ref, index) => {
             if (ref.type === 'internal' && ref.target !== 'external' && nodePositions.has(ref.target)) {
               const isHighlighted = highlightedReferences.includes(node.id) || 
                                    highlightedReferences.includes(ref.target);
@@ -197,14 +216,14 @@ export function AdaptiveCanvas({
           });
         }
 
-        createEdges(node.children);
+        createEdges(node.children || []);
       });
     };
 
     createEdges(activeNodes);
 
     return { nodes, edges };
-  }, [activeNodes, selectedNodeId, isStreaming, lastNodeCount, highlightedReferences, showReferences, layoutMode]);
+  }, [activeNodes, selectedNodeId, isStreaming, lastNodeCount, highlightedReferences, showReferences, layoutMode, calculateNodeSize]);
 
   const [flowNodes, setNodes, onNodesChange] = useNodesState(nodes);
   const [flowEdges, setEdges, onEdgesChange] = useEdgesState(edges);
@@ -238,20 +257,7 @@ export function AdaptiveCanvas({
     [setSelectedNodeId]
   );
 
-  // Calculate node size based on content
-  const calculateNodeSize = useCallback((node: HierarchyNode) => {
-    const baseWidth = 200;
-    const baseHeight = 80;
-    
-    // Adjust size based on text length and hierarchy level
-    const textFactor = Math.min(node.text.length / 100, 2);
-    const levelFactor = Math.max(1, 6 - node.level) * 0.1;
-    
-    return {
-      width: baseWidth + (textFactor * 50) + (levelFactor * 20),
-      height: baseHeight + (textFactor * 20) + (levelFactor * 10),
-    };
-  }, []);
+
 
   if (!documentData && !isStreaming) {
     return (
@@ -282,6 +288,8 @@ export function AdaptiveCanvas({
           value={layoutMode}
           onChange={(e) => setLayoutMode(e.target.value as any)}
           className="px-3 py-1 text-sm bg-background/90 backdrop-blur-sm border rounded-md"
+          title="Graph Layout Mode"
+          aria-label="Graph Layout Mode"
         >
           <option value="hierarchical">Hierarchical</option>
           <option value="tree">Tree</option>
