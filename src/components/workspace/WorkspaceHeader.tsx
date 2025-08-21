@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { 
   Search, 
   Filter, 
@@ -34,7 +34,8 @@ export function WorkspaceHeader() {
     rightPanelCollapsed,
     setRightPanelCollapsed,
     setDocumentData,
-    saveDocument
+    saveDocument,
+    getAllNodes
   } = useRegulationStore();
   
   const [showFilters, setShowFilters] = useState(false);
@@ -69,6 +70,19 @@ export function WorkspaceHeader() {
     }
     setActiveFilters(newFilters);
   };
+
+  // Compute filter counts based on document content
+  const computedFilters = useMemo(() => {
+    const nodes = getAllNodes();
+    if (!nodes || nodes.length === 0) return availableFilters.map(f => ({ ...f, count: 0 }));
+
+    return availableFilters.map(f => {
+      if (f.id === 'sections') return { ...f, count: nodes.filter(n => n.type === 'section').length };
+      if (f.id === 'references') return { ...f, count: nodes.filter(n => (n.references || []).length > 0).length };
+      if (f.id === 'definitions') return { ...f, count: nodes.filter(n => /definition/i.test(n.title || '') || /definition/i.test(n.text || '')).length };
+      return { ...f, count: 0 };
+    });
+  }, [documentData, getAllNodes]);
 
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -172,7 +186,7 @@ export function WorkspaceHeader() {
         <div className="border-t px-4 py-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">Filters:</span>
-            {availableFilters.map((filter) => (
+            {computedFilters.map((filter) => (
               <Button
                 key={filter.id}
                 variant={activeFilters.has(filter.id) ? "default" : "outline"}

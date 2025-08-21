@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, FileText, Hash, List } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Hash, List, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRegulationStore, HierarchyNode } from '@/store/regulationStore';
@@ -26,7 +26,7 @@ function TreeNode({
 }: TreeNodeProps) {
   const isExpanded = expandedNodes.has(node.id);
   const isSelected = selectedNodeId === node.id;
-  const hasChildren = node.children.length > 0;
+  const hasChildren = (node.children || []).length > 0;
   
   // Highlight search matches
   const matchesSearch = searchQuery && (
@@ -68,6 +68,7 @@ function TreeNode({
           matchesSearch && "bg-yellow-50 border border-yellow-200",
           level > 0 && "ml-4"
         )}
+        // keep padding left for nesting but avoid inline styles for linter
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={() => onSelectNode(node.id)}
       >
@@ -75,21 +76,23 @@ function TreeNode({
           <Button
             variant="ghost"
             size="sm"
-            className="h-4 w-4 p-0 hover:bg-transparent"
+            className="h-6 w-6 p-0 hover:bg-transparent"
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpand(node.id);
             }}
+            aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
+            title={isExpanded ? 'Collapse' : 'Expand'}
           >
             {isExpanded ? (
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-4 w-4" />
             ) : (
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-4 w-4" />
             )}
           </Button>
         )}
         
-        {!hasChildren && <div className="w-4" />}
+        {!hasChildren && <div className="w-6" />}
         
         <div className={cn("flex items-center gap-1 flex-1 min-w-0", getTypeColor(node.type))}>
           {getTypeIcon(node.type)}
@@ -110,9 +113,9 @@ function TreeNode({
             </span>
           )}
           
-          {node.references.length > 0 && (
+          {(node.references || []).length > 0 && (
             <span className="text-xs text-primary bg-primary/10 px-1 rounded">
-              {node.references.length}
+              {(node.references || []).length}
             </span>
           )}
         </div>
@@ -188,11 +191,11 @@ export function TreeNavigationPanel() {
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-semibold text-sm">Document Outline</h3>
           <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={handleExpandAll} className="h-6 text-xs">
-              Expand
+            <Button variant="ghost" size="sm" onClick={handleExpandAll} className="h-7 w-7 p-0" title="Expand all" aria-label="Expand all">
+              <ChevronDown className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleCollapseAll} className="h-6 text-xs">
-              Collapse
+            <Button variant="ghost" size="sm" onClick={handleCollapseAll} className="h-7 w-7 p-0" title="Collapse all" aria-label="Collapse all">
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
