@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRegulationStore } from '@/store/regulationStore';
-import * as pdfjsLib from 'pdfjs-dist';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Use local worker shipped in `public/` to avoid CDN/CORS issues and ensure Vite serves it
+GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.mjs`;
 
 interface DocumentViewerProps {
   documentData: any | null;
@@ -28,7 +28,7 @@ export function DocumentViewer({ documentData, fileType, content, highlightedSec
   const renderPDF = async (pdfBuffer: ArrayBuffer) => {
     setIsLoading(true);
     try {
-      const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+      const pdf = await getDocument({ data: pdfBuffer }).promise;
       const pages: string[] = [];
       
       for (let i = 1; i <= pdf.numPages; i++) {
