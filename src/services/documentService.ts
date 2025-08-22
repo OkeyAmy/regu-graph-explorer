@@ -143,8 +143,8 @@ async function extractAndShowRawDocument(
     message: 'Extracting content...'
   });
 
-  // Simulate brief extraction animation (2-3 seconds as per TODO.md)
-  await new Promise(resolve => setTimeout(resolve, 2500));
+  // Brief extraction delay (immediate display after upload)
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   try {
     if (typeof input === 'string') {

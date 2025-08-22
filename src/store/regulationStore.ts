@@ -91,6 +91,9 @@ interface RegulationStore {
   rightPanelCollapsed: boolean;
   setRightPanelCollapsed: (collapsed: boolean) => void;
 
+  // Chat context
+  getChatContext: (nodeId: string) => { nodeId: string; nodeTitle: string; nodeText: string } | null;
+
   // Saved documents (localStorage)
   savedDocuments: Array<{ id: string; title: string; timestamp: number; data: DocumentData }>;
   saveDocument: (title: string, data: DocumentData) => void;
@@ -275,5 +278,29 @@ export const useRegulationStore = create<RegulationStore>((set, get) => ({
     return allNodes.filter(node => 
       node.references.some(ref => ref.target === nodeId)
     );
+  },
+
+  getChatContext: (nodeId) => {
+    const state = get();
+    const findNode = (nodes: HierarchyNode[], id: string): HierarchyNode | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        const found = findNode(node.children, id);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const hierarchy = state.documentData?.hierarchy || state.streamingState.streamingNodes;
+    if (!hierarchy) return null;
+
+    const node = findNode(hierarchy, nodeId);
+    if (!node) return null;
+
+    return {
+      nodeId: node.id,
+      nodeTitle: node.title || node.number,
+      nodeText: node.text || ''
+    };
   },
 }));
