@@ -82,8 +82,9 @@ pnpm dev
 Create a `.env.local` file in the root directory:
 
 ```env
-VITE_GOOGLE_AI_API_KEY=your_google_ai_api_key_here
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
 ```
+
 
 ### Available Scripts
 
@@ -99,7 +100,7 @@ VITE_GOOGLE_AI_API_KEY=your_google_ai_api_key_here
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **State Management**: Zustand
-- **AI Processing**: LangChain + Google Generative AI
+- **AI Processing**: LangChain + Google Gemini AI
 - **File Processing**: PDF.js, HTML parsing, text processing
 - **UI Components**: Radix UI primitives with custom styling
 - **Routing**: React Router DOM
