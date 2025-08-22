@@ -1,4 +1,3 @@
-
 import { DocumentData } from '@/store/regulationStore';
 import { DocumentProcessor } from './documentProcessor';
 import { useRegulationStore } from '@/store/regulationStore';
@@ -22,10 +21,13 @@ export async function processDocument(
   const store = useRegulationStore.getState();
 
   try {
-    // Clear any existing streaming data
+    // Clear any existing data
     store.clearStreamingData();
     
-    // Start streaming
+    // Immediately extract and show raw document content
+    await extractAndShowRawDocument(input, setProcessingState, store);
+    
+    // Start AI processing in background
     store.setStreamingState({ 
       isStreaming: true,
       streamingProgress: 0 
@@ -90,7 +92,7 @@ export async function processDocument(
         // Clear streaming data after a brief delay to show completion
         setTimeout(() => {
           store.clearStreamingData();
-          console.log('🎨 Canvas now showing final document structure');
+          console.log('🎨 Document structure now complete');
         }, 1500);
       },
       
@@ -123,5 +125,75 @@ export async function processDocument(
       isStreaming: false,
       streamingProgress: 0 
     });
+  }
+}
+
+/**
+ * Extract and show raw document content immediately
+ */
+async function extractAndShowRawDocument(
+  input: File | string,
+  setProcessingState: (state: ProcessingState) => void,
+  store: ReturnType<typeof useRegulationStore.getState>
+): Promise<void> {
+  
+  setProcessingState({
+    stage: 'uploading',
+    progress: 10,
+    message: 'Extracting content...'
+  });
+
+  // Simulate brief extraction animation (2-3 seconds as per TODO.md)
+  await new Promise(resolve => setTimeout(resolve, 2500));
+
+  try {
+    if (typeof input === 'string') {
+      // Handle URL input
+      setProcessingState({
+        stage: 'cleaning',
+        progress: 50,
+        message: 'Fetching webpage content...'
+      });
+
+      // For now, set placeholder content - in real implementation would fetch URL
+      const urlContent = `<div class="url-content">
+        <h1>Website Content</h1>
+        <p>URL: ${input}</p>
+        <p>This is where the extracted and formatted website content would appear.</p>
+        <p>The content would be properly organized for readability and navigation.</p>
+      </div>`;
+      
+      store.setRawDocumentContent(urlContent, 'url', input);
+      
+    } else {
+      // Handle file input
+      const fileName = input.name;
+      
+      if (input.type === 'application/pdf') {
+        // Read PDF as ArrayBuffer
+        const arrayBuffer = await input.arrayBuffer();
+        store.setRawDocumentContent(arrayBuffer, 'pdf', fileName);
+        
+      } else if (input.type === 'text/html') {
+        // Read HTML content
+        const textContent = await input.text();
+        store.setRawDocumentContent(textContent, 'html', fileName);
+        
+      } else {
+        // Read as text
+        const textContent = await input.text();
+        store.setRawDocumentContent(textContent, 'text', fileName);
+      }
+    }
+
+    setProcessingState({
+      stage: 'parsing',
+      progress: 100,
+      message: 'Document ready for viewing'
+    });
+
+  } catch (error) {
+    console.error('Error extracting document:', error);
+    throw error;
   }
 }

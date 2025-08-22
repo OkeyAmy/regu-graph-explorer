@@ -142,13 +142,29 @@ function TreeNode({
 }
 
 export function TreeNavigationPanel() {
-  const { documentData, selectedNodeId, setSelectedNodeId, searchQuery } = useRegulationStore();
+  const { 
+    documentData, 
+    streamingState,
+    selectedNodeId, 
+    setSelectedNodeId, 
+    searchQuery,
+    scrollToSection 
+  } = useRegulationStore();
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
-  if (!documentData) {
+  // Use streaming data if available, otherwise use final document data
+  const hierarchyData = documentData?.hierarchy || streamingState.streamingNodes;
+  const metadataTitle = documentData?.metadata?.title || streamingState.streamingMetadata?.title || 'Processing...';
+
+  if (!hierarchyData || hierarchyData.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground">
-        No document loaded
+      <div className="h-full flex items-center justify-center text-muted-foreground border-r bg-muted/20">
+        <div className="text-center p-4">
+          <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">
+            {streamingState.isStreaming ? 'Analyzing document...' : 'No document loaded'}
+          </p>
+        </div>
       </div>
     );
   }
@@ -165,6 +181,8 @@ export function TreeNavigationPanel() {
 
   const handleSelectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
+    // Trigger document highlighting and scrolling
+    scrollToSection(nodeId);
   };
 
   const handleExpandAll = () => {
@@ -177,7 +195,7 @@ export function TreeNavigationPanel() {
         }
       });
     };
-    collectNodeIds(documentData.hierarchy);
+    collectNodeIds(hierarchyData);
     setExpandedNodes(allNodes);
   };
 
@@ -201,13 +219,21 @@ export function TreeNavigationPanel() {
         </div>
         
         <p className="text-xs text-muted-foreground">
-          {documentData.metadata.title}
+          {metadataTitle}
         </p>
+        
+        {/* Streaming indicator */}
+        {streamingState.isStreaming && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+            <span>Analyzing document structure...</span>
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {documentData.hierarchy.map((node) => (
+          {hierarchyData.map((node) => (
             <TreeNode
               key={node.id}
               node={node}

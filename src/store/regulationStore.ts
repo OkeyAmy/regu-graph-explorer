@@ -46,9 +46,22 @@ interface RegulationStore {
   documentData: DocumentData | null;
   setDocumentData: (data: DocumentData | null) => void;
 
+  // Raw document content for viewer
+  rawDocumentContent: {
+    content: string | ArrayBuffer | null;
+    fileType: 'pdf' | 'html' | 'text' | 'url' | null;
+    fileName?: string;
+  };
+  setRawDocumentContent: (content: string | ArrayBuffer | null, fileType: 'pdf' | 'html' | 'text' | 'url', fileName?: string) => void;
+
   // Processing state
   processingState: ProcessingState;
   setProcessingState: (state: ProcessingState) => void;
+
+  // Document viewer state
+  highlightedSections: string[];
+  setHighlightedSections: (sections: string[]) => void;
+  scrollToSection: (sectionId: string) => void;
 
   // Streaming state
   streamingState: StreamingState;
@@ -60,8 +73,9 @@ interface RegulationStore {
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
   
-  highlightedReferences: string[];
-  setHighlightedReferences: (refs: string[]) => void;
+  // Remove old highlighted references since we have new document viewer state
+  // highlightedReferences: string[];
+  // setHighlightedReferences: (refs: string[]) => void;
 
   // Search and filters
   searchQuery: string;
@@ -125,6 +139,26 @@ export const useRegulationStore = create<RegulationStore>((set, get) => ({
   documentData: null,
   setDocumentData: (data) => set({ documentData: data }),
 
+  // Raw document content
+  rawDocumentContent: {
+    content: null,
+    fileType: null,
+    fileName: undefined,
+  },
+  setRawDocumentContent: (content, fileType, fileName) => set({
+    rawDocumentContent: { content, fileType, fileName }
+  }),
+
+  // Document viewer state
+  highlightedSections: [],
+  setHighlightedSections: (sections) => set({ highlightedSections: sections }),
+  scrollToSection: (sectionId) => {
+    const sections = get().highlightedSections;
+    if (!sections.includes(sectionId)) {
+      set({ highlightedSections: [...sections, sectionId] });
+    }
+  },
+
   // Processing state
   processingState: {
     stage: 'idle',
@@ -160,26 +194,11 @@ export const useRegulationStore = create<RegulationStore>((set, get) => ({
 
   // Selected node and references
   selectedNodeId: null,
-  setSelectedNodeId: (id) => {
-    set({ selectedNodeId: id });
-    
-    // Auto-highlight references when a node is selected
-    if (id) {
-      const referencingNodes = get().findReferencesToNode(id);
-      const node = get().findNodeById(id);
-      const relatedIds = [
-        ...referencingNodes.map(n => n.id),
-        ...(node?.references.map(r => r.target) || [])
-      ].filter(refId => refId !== 'external');
-      
-      get().setHighlightedReferences(relatedIds);
-    } else {
-      get().setHighlightedReferences([]);
-    }
-  },
-
-  highlightedReferences: [],
-  setHighlightedReferences: (refs) => set({ highlightedReferences: refs }),
+  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  
+  // Remove old highlighted references implementation
+  // highlightedReferences: [],
+  // setHighlightedReferences: (refs) => set({ highlightedReferences: refs }),
 
   // Search and filters
   searchQuery: '',
