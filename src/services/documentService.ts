@@ -1,6 +1,8 @@
 import { DocumentData } from '@/store/regulationStore';
 import { DocumentProcessor } from './documentProcessor';
 import { useRegulationStore } from '@/store/regulationStore';
+import { langextractApi } from './langextractApiService';
+import { ProcessingStatus as LangExtractStatus } from '@/types/langextract';
 
 interface ProcessingState {
   stage: 'idle' | 'uploading' | 'cleaning' | 'parsing' | 'building' | 'complete' | 'error';
@@ -23,11 +25,23 @@ export async function processDocument(
   try {
     // Clear any existing data
     store.clearStreamingData();
+    store.setExtractionMethod('quick');
     
     // Immediately extract and show raw document content
     await extractAndShowRawDocument(input, setProcessingState, store);
     
-    // Start AI processing in background
+    // Try LangExtract backend first (hybrid approach)
+    console.log('🚀 Attempting LangExtract processing...');
+    await processWithLangExtract(input, setProcessingState);
+    
+    // If LangExtract succeeded, we're done
+    if (store.getState().extractionMethod === 'langextract') {
+      console.log('✅ LangExtract processing completed successfully');
+      return;
+    }
+    
+    // Fallback: Start quick AI processing in background
+    console.log('⚡ Falling back to quick processing...');
     store.setStreamingState({ 
       isStreaming: true,
       streamingProgress: 0 
@@ -195,5 +209,87 @@ async function extractAndShowRawDocument(
   } catch (error) {
     console.error('Error extracting document:', error);
     throw error;
+  }
+}
+
+/**
+ * Process document with LangExtract backend (hybrid approach)
+ * This runs in background after quick preview is shown
+ */
+async function processWithLangExtract(
+  input: File | string,
+  setProcessingState: (state: ProcessingState) => void
+): Promise<void> {
+  const store = useRegulationStore.getState();
+  
+  try {
+    // Only process files for now (URL support coming later)
+    if (typeof input === 'string') {
+      console.log('URL extraction with LangExtract not yet implemented');
+      return;
+    }
+
+    // Check backend health first
+    console.log('🔍 Checking LangExtract backend health...');
+    const isHealthy = await langextractApi.healthCheck();
+    if (!isHealthy) {
+      console.warn('⚠️ LangExtract backend is not available, skipping enhanced extraction');
+      return;
+    }
+    console.log('✅ Backend is healthy, proceeding with extraction');
+
+    // Generate session ID for WebSocket updates
+    const sessionId = langextractApi.generateSessionId();
+    console.log('📡 Generated session ID:', sessionId);
+
+    setProcessingState({
+      stage: 'parsing',
+      progress: 10,
+      message: 'Connecting to LangExtract backend...'
+    });
+
+    // Upload document and wait for completion
+    console.log('📤 Uploading document to backend...');
+    const result = await langextractApi.uploadDocument({
+      file: input,
+      sessionId,
+      onProgress: (status: LangExtractStatus) => {
+        console.log('📊 Progress update:', status);
+        setProcessingState({
+          stage: status.stage as any,
+          progress: status.progress,
+          message: status.message,
+        });
+      },
+      onComplete: (response) => {
+        console.log('✅ LangExtract processing complete:', response);
+        
+        // Update store with langextract data
+        store.setDocumentData(response.document_data);
+        store.setEntityGraph(response.entity_graph);
+        store.setExtractionMethod('langextract');
+        
+        setProcessingState({
+          stage: 'complete',
+          progress: 100,
+          message: `LangExtract analysis complete in ${response.processing_time.toFixed(1)}s`
+        });
+      },
+      onError: (error) => {
+        console.error('❌ LangExtract processing failed:', error);
+        
+        setProcessingState({
+          stage: 'error',
+          progress: 0,
+          message: `LangExtract error: ${error.message}`
+        });
+      }
+    });
+    
+    console.log('✅ Upload request sent, result:', result);
+
+  } catch (error) {
+    console.error('Failed to process with LangExtract:', error);
+    // Don't throw - allow quick preview to remain usable
   }
 }

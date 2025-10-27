@@ -13,7 +13,9 @@ import {
   PanelLeftOpen,
   PanelLeftClose,
   PanelRightOpen,
-  PanelRightClose
+  PanelRightClose,
+  Network,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useRegulationStore } from '@/store/regulationStore';
 import { useToast } from '@/hooks/use-toast';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export function WorkspaceHeader() {
   const { 
@@ -35,7 +38,10 @@ export function WorkspaceHeader() {
     setRightPanelCollapsed,
     setDocumentData,
     saveDocument,
-    getAllNodes
+    getAllNodes,
+    graphMode,
+    setGraphMode,
+    extractionMethod
   } = useRegulationStore();
   
   const [showFilters, setShowFilters] = useState(false);
@@ -139,6 +145,32 @@ export function WorkspaceHeader() {
 
         {/* Right section - Tools */}
         <div className="flex items-center gap-2">
+          {/* Graph Mode Toggle */}
+          <ToggleGroup
+            type="single"
+            value={graphMode}
+            onValueChange={(value) => value && setGraphMode(value as 'hierarchy' | 'entities')}
+            className="border rounded-md p-1"
+          >
+            <ToggleGroupItem value="hierarchy" aria-label="Hierarchy view" size="sm">
+              <FileText className="h-3.5 w-3.5 mr-1" />
+              <span className="text-xs">Hierarchy</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="entities" aria-label="Entity view" size="sm">
+              <Network className="h-3.5 w-3.5 mr-1" />
+              <span className="text-xs">Entities</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* Extraction Method Badge */}
+          {extractionMethod === 'langextract' && (
+            <Badge variant="outline" className="text-xs">
+              LangExtract
+            </Badge>
+          )}
+
+          <Separator orientation="vertical" className="h-6" />
+
           <div className="flex items-center gap-1">
             <Button
               variant={showFilters ? "default" : "ghost"}

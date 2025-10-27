@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRegulationStore } from '@/store/regulationStore';
 import { processDocument } from '@/services/documentService';
+import { langextractApi } from '@/services/langextractApiService';
+import { useToast } from '@/hooks/use-toast';
 import { SampleDocumentLoader } from '@/components/demo/SampleDocument';
 import { cn } from '@/lib/utils';
 
@@ -14,10 +16,23 @@ export function UploadInterface() {
   const [url, setUrl] = useState('');
   const [isProcessingUrl, setIsProcessingUrl] = useState(false);
   const { setProcessingState, savedDocuments, refreshSavedDocuments, loadDocument } = useRegulationStore();
+  const { toast } = useToast();
 
-  // Load saved documents on mount
+  // Load saved documents and check backend health on mount
   useState(() => {
     refreshSavedDocuments();
+  });
+
+  // Backend health check with quick feedback
+  useState(() => {
+    (async () => {
+      const healthy = await langextractApi.healthCheck();
+      if (healthy) {
+        toast({ title: 'Backend connected', description: 'LangExtract API is online.' });
+      } else {
+        console.warn('LangExtract backend is not reachable at startup');
+      }
+    })();
   });
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {

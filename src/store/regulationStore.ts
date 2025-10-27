@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { EntityGraph, GraphMode, ExtractionMethod } from '@/types/langextract';
 
 export interface Reference {
   target: string;
@@ -27,11 +28,17 @@ export interface DocumentData {
   hierarchy: HierarchyNode[];
 }
 
-interface ProcessingState {
-  stage: 'idle' | 'uploading' | 'cleaning' | 'parsing' | 'building' | 'complete' | 'error';
+export interface ProcessingState {
+  stage: 'idle' | 'uploading' | 'cleaning' | 'parsing' | 'extracting' | 'hierarchy' | 'entities' | 'building' | 'complete' | 'error';
   progress: number;
   message: string;
   currentSection?: string;
+  details?: {
+    currentChunk?: number;
+    totalChunks?: number;
+    extractedItems?: number;
+    phase?: string;
+  };
 }
 
 interface StreamingState {
@@ -45,6 +52,18 @@ interface RegulationStore {
   // Document data
   documentData: DocumentData | null;
   setDocumentData: (data: DocumentData | null) => void;
+
+  // Entity graph data (from langextract)
+  entityGraph: EntityGraph | null;
+  setEntityGraph: (graph: EntityGraph | null) => void;
+
+  // Graph visualization mode
+  graphMode: GraphMode;
+  setGraphMode: (mode: GraphMode) => void;
+
+  // Extraction method tracking
+  extractionMethod: ExtractionMethod;
+  setExtractionMethod: (method: ExtractionMethod) => void;
 
   // Raw document content for viewer
   rawDocumentContent: {
@@ -141,6 +160,18 @@ export const useRegulationStore = create<RegulationStore>((set, get) => ({
   // Document data
   documentData: null,
   setDocumentData: (data) => set({ documentData: data }),
+
+  // Entity graph data
+  entityGraph: null,
+  setEntityGraph: (graph) => set({ entityGraph: graph }),
+
+  // Graph mode
+  graphMode: 'hierarchy',
+  setGraphMode: (mode) => set({ graphMode: mode }),
+
+  // Extraction method
+  extractionMethod: 'quick',
+  setExtractionMethod: (method) => set({ extractionMethod: method }),
 
   // Raw document content
   rawDocumentContent: {

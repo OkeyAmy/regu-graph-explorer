@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test data
+test_data/*.pdf
+test_data/*.txt
+test_data/*.html
+test_data/*.htm
+test_data/*.doc*
+!test_data/.gitkeep
+
+# Generated extraction output
+regulation_extractions.jsonl
+regulation_extractions.json
+regulation_visualization.html
+*.jsonl
+extractions.jsonl
+visualization.html
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+

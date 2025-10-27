@@ -1,5 +1,5 @@
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { TreeNavigationPanel } from './TreeNavigationPanel';
+import { GraphVisualization } from './GraphVisualization';
 import { DocumentViewer } from './DocumentViewer';
 import { ChatPanel } from './ChatPanel';
 import { WorkspaceHeader } from './WorkspaceHeader';
@@ -20,11 +20,11 @@ export function WorkspaceView() {
       
       <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal">
-          {/* Left Panel - Tree Navigation */}
+          {/* Left Panel - Graph Visualization */}
           {!leftPanelCollapsed && (
             <>
               <Panel defaultSize={25} minSize={15} maxSize={40}>
-                <TreeNavigationPanel />
+                <GraphVisualization className="h-full" />
               </Panel>
               <PanelResizeHandle className="w-2 bg-border hover:bg-border/80 transition-colors" />
             </>
